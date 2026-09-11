@@ -22,7 +22,7 @@ def parse_json_response(response_text: str, expected_start: str):
 def generate_texts(client: genai.Client, profile: str, topic: str) -> dict:
     prompt = f"""
 Crie 4 textos curtos de DDS sobre o tema: {topic}.
-O publico e: {profile}.
+
 Cada texto deve ter de 8 a 10 linhas.
 Retorne apenas JSON neste formato:
 {{
@@ -36,17 +36,28 @@ Retorne apenas JSON neste formato:
     response = chat.send_message(prompt)
     return parse_json_response(response.text, "{")
 
+# gemini-2.5-flash
 
 def evaluate_texts(client: genai.Client, texts: dict) -> pd.DataFrame:
     prompt = f"""
 Avalie os textos de DDS abaixo, atribuindo notas de 1 a 10 para cada criterio.
 
-Criterios: Seguranca, EPIs, Clareza, Objetividade, Aplicabilidade.
-Textos: {json.dumps(texts, ensure_ascii=False)}
+Criterios:
+- Seguranca
+- EPIs
+- Clareza
+- Objetividade
+- Aplicabilidade
+
+Textos:
+{texts}
 
 Retorne apenas JSON neste formato:
 [
-  {{"Texto": "Texto 1", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}}
+    {{"Texto": "Texto 1", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}},
+    {{"Texto": "Texto 2", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}},
+    {{"Texto": "Texto 3", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}},
+    {{"Texto": "Texto 4", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}}
 ]
 """
     chat = client.chats.create(model="gemini-2.5-flash")
@@ -65,18 +76,32 @@ def calculate_ranking(evaluations: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataF
     normalized = original.div(original.sum(axis=0), axis=1)
     mean = normalized.mean(axis=0)
     standard_deviation = normalized.std(axis=0)
-    variation = standard_deviation / mean.replace(0, pd.NA)
-    weights = variation / variation.sum()
+    coefficient_of_variation = standard_deviation / mean
+    matriz_cv = pd.DataFrame({
+        "Media": mean,
+        "Desvio_Padrao": standard_deviation,
+    })
+    matriz_cv["Coeficiente_de_Variacao"] = coefficient_of_variation
+    sum_cv = matriz_cv["Coeficiente_de_Variacao"].sum()
+    matriz_cv["Peso_AHP_Gaussiano"] = (
+        matriz_cv["Coeficiente_de_Variacao"] / sum_cv
+    )
+    weights = matriz_cv["Peso_AHP_Gaussiano"]
     weighted = normalized * weights
-    ranking = pd.DataFrame({"Texto": weighted.sum(axis=1), "Pontuacao": weighted.sum(axis=1)})
-    ranking = ranking[["Pontuacao"]].sort_values("Pontuacao", ascending=False).reset_index()
+    final_score = weighted.sum(axis=1)
+    ranking = pd.DataFrame({
+        "Texto": final_score.index,
+        "Pontuacao": final_score,
+    })
+    ranking = ranking.sort_values(by="Pontuacao", ascending=False)
     ranking["Ranking"] = range(1, len(ranking) + 1)
-    weight_table = pd.DataFrame({"Peso AHP Gaussiano": weights})
-    return ranking, weight_table
+    return ranking, matriz_cv
 
 
 def get_client() -> genai.Client:
     api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key and "GEMINI_API_KEY" in st.secrets:
+        api_key = st.secrets["GEMINI_API_KEY"]
     if not api_key:
         raise RuntimeError("Defina a variavel de ambiente GEMINI_API_KEY antes de iniciar o site.")
     return genai.Client(api_key=api_key)
@@ -129,7 +154,7 @@ if "result" in st.session_state:
             st.bar_chart(ranking.set_index("Texto")["Pontuacao"])
             st.dataframe(ranking, hide_index=True, use_container_width=True)
         with right:
-            st.subheader("Pesos dos criterios")
+            st.subheader("Calculo dos criterios")
             st.dataframe(weights, use_container_width=True)
     with texts_tab:
         for name, text in texts.items():

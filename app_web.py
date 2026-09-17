@@ -214,7 +214,7 @@ aplicáveis à organização.</div></body></html>"""
 
 
 st.markdown("""<section class="hero">
-<span class="hero-tag">Sistema de apoio à decisão em segurança industrial</span>
+<span class="hero-tag">Sistema de apoio à decisão - Tecnologia e conhecimento unidos para prevenir riscos e proteger vidas | @2026</span>
 <h1>DDS SmartSelect</h1><h2>Seleção Inteligente de Diálogos Diários de Segurança</h2>
 <p>IA Generativa e AHP-Gaussiano para gerar, avaliar e priorizar textos de DDS
 adequados ao público e ao contexto operacional.</p></section>""", unsafe_allow_html=True)

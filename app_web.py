@@ -219,15 +219,6 @@ st.markdown("""<section class="hero">
 <p>IA Generativa e AHP-Gaussiano para gerar, avaliar e priorizar textos de DDS
 adequados ao público e ao contexto operacional.</p></section>""", unsafe_allow_html=True)
 
-st.markdown('<h3 class="section-title">Como funciona?</h3>', unsafe_allow_html=True)
-st.markdown("""<div class="method-flow">
-<div class="method-step"><div class="step-number">ETAPA 1</div><div class="step-title">Contexto</div><div class="step-text">Digite o perfil dos profissionais e descreva o contexto necessário</div></div>
-<div class="method-step"><div class="step-number">ETAPA 2</div><div class="step-title">Geração</div><div class="step-text">Quatro textos são criados por Inteligência Artificial</div></div>
-<div class="method-step"><div class="step-number">ETAPA 3</div><div class="step-title">Avaliação</div><div class="step-text">Notas em cinco critérios: Segurança, EPIs, Clareza, Objetividade e Aplicabilidade</div></div>
-<div class="method-step"><div class="step-number">ETAPA 4</div><div class="step-title">AHP-Gaussiano</div><div class="step-text">O sistema aplica o método de decisão</div></div>
-<div class="method-step"><div class="step-number">ETAPA 5</div><div class="step-title">Recomendação</div><div class="step-text">Ranking e melhor DDS</div></div>
-</div>""", unsafe_allow_html=True)
-
 st.markdown('<h3 class="section-title">Gerar nova recomendação</h3>', unsafe_allow_html=True)
 with st.form("dds_form"):
     profile = st.text_input("Perfil do público",
@@ -322,6 +313,15 @@ if "result" in st.session_state:
             st.markdown("""O **AHP-Gaussiano** obtém pesos a partir da variabilidade
             das avaliações. Quanto mais um critério diferencia as alternativas, maior tende
             a ser seu peso. A pontuação final é a soma ponderada dos valores normalizados.""")
+
+st.markdown('<h3 class="section-title">Como funciona?</h3>', unsafe_allow_html=True)
+st.markdown("""<div class="method-flow">
+<div class="method-step"><div class="step-number">ETAPA 1</div><div class="step-title">Contexto</div><div class="step-text">Digite o perfil dos profissionais e descreva o contexto necessário</div></div>
+<div class="method-step"><div class="step-number">ETAPA 2</div><div class="step-title">Geração</div><div class="step-text">Quatro textos são criados por Inteligência Artificial</div></div>
+<div class="method-step"><div class="step-number">ETAPA 3</div><div class="step-title">Avaliação</div><div class="step-text">Notas em cinco critérios: Segurança, EPIs, Clareza, Objetividade e Aplicabilidade</div></div>
+<div class="method-step"><div class="step-number">ETAPA 4</div><div class="step-title">AHP-Gaussiano</div><div class="step-text">O sistema aplica o método de decisão</div></div>
+<div class="method-step"><div class="step-number">ETAPA 5</div><div class="step-title">Recomendação</div><div class="step-text">Ranking e melhor DDS</div></div>
+</div>""", unsafe_allow_html=True)
 
 st.markdown('<h3 class="section-title">Sobre o método</h3>', unsafe_allow_html=True)
 st.markdown("""<div class="panel">O <strong>DDS SmartSelect</strong> integra IA

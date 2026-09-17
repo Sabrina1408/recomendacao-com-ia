@@ -214,22 +214,21 @@ aplicáveis à organização.</div></body></html>"""
 
 
 st.markdown("""<section class="hero">
-<span class="hero-tag">Sistema de apoio à decisão - Tecnologia e conhecimento unidos para prevenir riscos e proteger vidas | @2026</span>
+<span class="hero-tag">Sistema de apoio à decisão - Tecnologia e conhecimento unidos para prevenir riscos e proteger vidas.</span>
 <h1>DDS SmartSelect</h1><h2>Seleção Inteligente de Diálogos Diários de Segurança</h2>
-<p>IA Generativa e AHP-Gaussiano para gerar, avaliar e priorizar textos de DDS
-adequados ao público e ao contexto operacional.</p></section>""", unsafe_allow_html=True)
+<p>Trabalho aprovado para apresentação no XLVI Encontro Nacional de Engenharia de Produção · ENEGEP 2026</p></section>""", unsafe_allow_html=True)
 
 st.markdown('<h3 class="section-title">Gerar nova recomendação</h3>', unsafe_allow_html=True)
 with st.form("dds_form"):
     profile = st.text_input("Perfil do público",
         value="Eletricistas industriais com experiência em atividades de manutenção",
-        help="Informe função, experiência ou características que ajudem a adequar a linguagem.")
+        help="Informe função, experiência ou características que ajudem a adequar a linguagem ao público.")
     topic = st.text_area("Tema e contexto do DDS", value=(
         "Ocorreu um incidente envolvendo atividades em painéis elétricos energizados. "
         "Elaborar um DDS sobre os principais riscos em intervenções elétricas, com ênfase "
         "em medidas preventivas, uso adequado de EPIs, bloqueio de energia e "
         "conscientização operacional conforme as práticas da NR-10."),
-        height=145, help="Descreva a situação, o risco ou a mensagem preventiva.")
+        height=145, help="Descreva a situação, o risco ou algum acidente ocorrido")
     submitted = st.form_submit_button("✨ Gerar e selecionar o melhor DDS",
                                       type="primary", use_container_width=True)
 
@@ -335,8 +334,6 @@ st.markdown('<h3 class="section-title">Pesquisa desenvolvida por</h3>', unsafe_a
 for column, author in zip(st.columns(4), AUTHORS):
     with column:
         render_author(*author)
-st.markdown('<div class="event-note">Trabalho aprovado para apresentação no XLVI Encontro Nacional de Engenharia de Produção · ENEGEP 2026</div>',
-            unsafe_allow_html=True)
 
 st.markdown('<h3 class="section-title">Instituições e artigo científico</h3>',
             unsafe_allow_html=True)

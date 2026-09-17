@@ -1,6 +1,7 @@
 import html
 import json
 import os
+import base64
 from pathlib import Path
 
 import pandas as pd
@@ -82,6 +83,30 @@ padding:1.25rem;box-shadow:0 4px 16px rgba(8,43,76,.05)}
   .winner-card{padding:1rem;border-left-width:5px}
   .winner-title{font-size:1.2rem}
   div.stButton>button,div.stDownloadButton>button{width:100%;min-height:48px}
+}
+.logo-box {
+    height: 130px;
+    background: white;
+    border: 1px solid #dce5ec;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    overflow: hidden;
+}
+
+.logo-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+@media (max-width: 600px) {
+    .logo-box {
+        height: 105px;
+        padding: 14px;
+    }
 }
 </style>""", unsafe_allow_html=True)
 
@@ -173,17 +198,45 @@ def get_client() -> genai.Client:
         raise RuntimeError("Configure GEMINI_API_KEY nos Secrets do Streamlit.")
     return genai.Client(api_key=api_key)
 
-
 def show_logos():
-    logos = [("UFF_logo.jpg", "UFF"), ("veiga_logo.png", "UVA"), ("puc_logo.png", "PUC-Rio")]
+    logos = [
+        ("UFF_logo.jpg", "UFF"),
+        ("veiga_logo.png", "UVA"),
+        ("puc_logo.png", "PUC-Rio"),
+    ]
+
     for column, (filename, label) in zip(st.columns(3), logos):
         with column:
             path = APP_DIR / filename
+
             if path.exists():
-                st.image(str(path), use_container_width=True)
+                mime = (
+                    "image/jpeg"
+                    if path.suffix.lower() in {".jpg", ".jpeg"}
+                    else "image/png"
+                )
+
+                encoded = base64.b64encode(
+                    path.read_bytes()
+                ).decode("ascii")
+
+                st.markdown(
+                    f"""
+                    <div class="logo-box">
+                        <img
+                            src="data:{mime};base64,{encoded}"
+                            alt="Logotipo {html.escape(label)}"
+                        >
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             else:
-                st.markdown(f"<div style='text-align:center;color:#5d6b78'>{label}</div>",
-                            unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="logo-box">{html.escape(label)}</div>',
+                    unsafe_allow_html=True,
+                )
+
 
 
 def render_author(name, affiliation, links):

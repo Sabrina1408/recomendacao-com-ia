@@ -68,8 +68,21 @@ div.stButton>button,div.stDownloadButton>button{border-radius:9px;font-weight:70
 div.stButton>button[kind="primary"]{background:var(--blue);border-color:var(--blue)}
 [data-testid="stForm"]{background:#fff;border:1px solid var(--line);border-radius:14px;
 padding:1.25rem;box-shadow:0 4px 16px rgba(8,43,76,.05)}
-@media(max-width:800px){.hero{padding:1.45rem}.hero h1{font-size:1.8rem}
-.method-flow{grid-template-columns:1fr}.method-step{min-height:auto;text-align:left}}
+@media(max-width:1000px){
+  .method-flow{grid-template-columns:repeat(2,1fr)}
+  .author-card{min-height:auto}
+}
+@media(max-width:600px){
+  .block-container{padding:1rem .8rem 1.5rem}
+  .hero{padding:1.25rem;border-radius:14px}
+  .hero h1{font-size:1.75rem}.hero h2{font-size:1rem}
+  .hero p{font-size:.92rem}
+  .method-flow{grid-template-columns:1fr}
+  .method-step{min-height:auto;text-align:left}
+  .winner-card{padding:1rem;border-left-width:5px}
+  .winner-title{font-size:1.2rem}
+  div.stButton>button,div.stDownloadButton>button{width:100%;min-height:48px}
+}
 </style>""", unsafe_allow_html=True)
 
 
@@ -183,37 +196,37 @@ def render_author(name, affiliation, links):
     <div class="author-links">{links_html}</div></div>""", unsafe_allow_html=True)
 
 
+def printable_dds(title: str, text: str) -> str:
+    """Cria uma página HTML limpa que pode ser aberta e impressa pelo navegador."""
+    safe_title = html.escape(title)
+    safe_text = html.escape(text).replace("\n", "<br>")
+    return f"""<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>{safe_title}</title>
+<style>
+body{{font-family:Arial,sans-serif;color:#17212b;max-width:760px;margin:48px auto;
+padding:0 28px;line-height:1.65}}h1{{color:#082b4c;border-bottom:3px solid #0b5f9e;
+padding-bottom:12px}}.note{{margin-top:32px;padding:12px;background:#fff8e7;
+border-left:5px solid #e6a817;font-size:13px}}@media print{{body{{margin:0;max-width:none}}
+.note{{break-inside:avoid}}}}</style></head><body><h1>{safe_title}</h1>
+<p>{safe_text}</p><div class="note"><strong>Atenção:</strong> material de apoio.
+Verifique sua compatibilidade com os procedimentos, normas e requisitos de segurança
+aplicáveis à organização.</div></body></html>"""
+
+
 st.markdown("""<section class="hero">
 <span class="hero-tag">Sistema de apoio à decisão em segurança industrial</span>
 <h1>DDS SmartSelect</h1><h2>Seleção Inteligente de Diálogos Diários de Segurança</h2>
 <p>IA Generativa e AHP-Gaussiano para gerar, avaliar e priorizar textos de DDS
 adequados ao público e ao contexto operacional.</p></section>""", unsafe_allow_html=True)
 
-logo_area, article_area = st.columns([2.15, 1], gap="large")
-with logo_area:
-    show_logos()
-with article_area:
-    st.markdown("#### Artigo científico")
-    st.caption("Trabalho aprovado para apresentação no XLVI ENEGEP 2026.")
-    if PDF_FILE.exists():
-        with open(PDF_FILE, "rb") as pdf:
-            st.download_button("📄 Acessar artigo completo", data=pdf.read(),
-                               file_name=PDF_FILE.name, mime="application/pdf",
-                               use_container_width=True)
-    else:
-        st.info(f'Inclua o arquivo "{PDF_FILE.name}" no diretório do app.')
-
 st.markdown('<h3 class="section-title">Como funciona?</h3>', unsafe_allow_html=True)
 st.markdown("""<div class="method-flow">
-<div class="method-step"><div class="step-number">ETAPA 1</div><div class="step-title">Contexto</div><div class="step-text">Perfil do público e tema</div></div>
-<div class="method-step"><div class="step-number">ETAPA 2</div><div class="step-title">Geração</div><div class="step-text">Quatro DDS criados por IA</div></div>
-<div class="method-step"><div class="step-number">ETAPA 3</div><div class="step-title">Avaliação</div><div class="step-text">Notas em cinco critérios</div></div>
-<div class="method-step"><div class="step-number">ETAPA 4</div><div class="step-title">AHP-Gaussiano</div><div class="step-text">Pesos pela variabilidade</div></div>
+<div class="method-step"><div class="step-number">ETAPA 1</div><div class="step-title">Contexto</div><div class="step-text">Digite o perfil dos profissionais e descreva o contexto necessário</div></div>
+<div class="method-step"><div class="step-number">ETAPA 2</div><div class="step-title">Geração</div><div class="step-text">Quatro textos são criados por Inteligência Artificial</div></div>
+<div class="method-step"><div class="step-number">ETAPA 3</div><div class="step-title">Avaliação</div><div class="step-text">Notas em cinco critérios: Segurança, EPIs, Clareza, Objetividade e Aplicabilidade</div></div>
+<div class="method-step"><div class="step-number">ETAPA 4</div><div class="step-title">AHP-Gaussiano</div><div class="step-text">O sistema aplica o método de decisão</div></div>
 <div class="method-step"><div class="step-number">ETAPA 5</div><div class="step-title">Recomendação</div><div class="step-text">Ranking e melhor DDS</div></div>
 </div>""", unsafe_allow_html=True)
-
-for column, label in zip(st.columns(5), LABELS.values()):
-    column.metric(label, "1–10")
 
 st.markdown('<h3 class="section-title">Gerar nova recomendação</h3>', unsafe_allow_html=True)
 with st.form("dds_form"):
@@ -247,16 +260,35 @@ if "result" in st.session_state:
     texts, evaluations, ranking, weights = st.session_state["result"]
     winner = ranking.iloc[0]["Texto"]
     winner_score = float(ranking.iloc[0]["Pontuação"])
-    winner_text = html.escape(str(texts[winner])).replace("\\n", "<br>")
+    winner_text = html.escape(str(texts[winner])).replace("\n", "<br>")
     st.markdown('<h3 class="section-title">DDS recomendado</h3>', unsafe_allow_html=True)
     st.markdown(f"""<div class="winner-card">
     <div class="winner-kicker">🏆 Alternativa priorizada pelo modelo multicritério</div>
     <div class="winner-title">{html.escape(winner)} · Pontuação {winner_score:.4f}</div>
     <div class="dds-text">{winner_text}</div></div>""", unsafe_allow_html=True)
 
-    winner_row = evaluations.set_index("Texto").loc[winner]
-    for column, criterion in zip(st.columns(5), CRITERIA):
-        column.metric(LABELS[criterion], f"{winner_row[criterion]:.0f}/10")
+    download_text = (
+        f"DDS SmartSelect - {winner}\n\n{texts[winner]}\n\n"
+        "Atenção: material de apoio. Verifique sua compatibilidade com os "
+        "procedimentos, normas e requisitos de segurança da organização."
+    )
+    download_area, print_area = st.columns(2)
+    with download_area:
+        st.download_button(
+            "⬇️ Baixar DDS em texto",
+            data=download_text.encode("utf-8"),
+            file_name="DDS_recomendado.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+    with print_area:
+        st.download_button(
+            "🖨️ Baixar versão para imprimir",
+            data=printable_dds(f"DDS recomendado - {winner}", str(texts[winner])).encode("utf-8"),
+            file_name="DDS_recomendado_para_impressao.html",
+            mime="text/html",
+            use_container_width=True,
+        )
     st.markdown("""<div class="safety-note"><strong>Atenção:</strong> o DDS gerado é
     material de apoio à comunicação preventiva. O profissional responsável deve verificar
     sua compatibilidade com os procedimentos, normas e requisitos da organização.</div>""",
@@ -305,3 +337,23 @@ for column, author in zip(st.columns(4), AUTHORS):
         render_author(*author)
 st.markdown('<div class="event-note">Trabalho aprovado para apresentação no XLVI Encontro Nacional de Engenharia de Produção · ENEGEP 2026</div>',
             unsafe_allow_html=True)
+
+st.markdown('<h3 class="section-title">Instituições e artigo científico</h3>',
+            unsafe_allow_html=True)
+logo_area, article_area = st.columns([2.15, 1], gap="large")
+with logo_area:
+    show_logos()
+with article_area:
+    st.markdown("#### Artigo científico")
+    st.caption("Trabalho aprovado para apresentação no XLVI ENEGEP 2026.")
+    if PDF_FILE.exists():
+        with open(PDF_FILE, "rb") as pdf:
+            st.download_button(
+                "📄 Acessar artigo completo",
+                data=pdf.read(),
+                file_name=PDF_FILE.name,
+                mime="application/pdf",
+                use_container_width=True,
+            )
+    else:
+        st.info(f'Inclua o arquivo "{PDF_FILE.name}" no diretório do app.')

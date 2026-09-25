@@ -123,16 +123,32 @@ def parse_json_response(response_text: str, expected_start: str):
 
 def generate_texts(client: genai.Client, profile: str, topic: str) -> dict:
     prompt = f"""
-Você é especialista em comunicação de segurança do trabalho.
-PERFIL DO PÚBLICO: {profile}
-TEMA E CONTEXTO: {topic}
+Você é especialista em Segurança do Trabalho e comunicação preventiva em ambientes profissionais.
 
-Crie 4 alternativas de Diálogo Diário de Segurança em português do Brasil,
-adaptadas ao público. Cada uma deve ter de 8 a 10 linhas curtas, linguagem clara,
-riscos e medidas preventivas aplicáveis. Mencione EPIs quando pertinentes e não
-invente requisitos legais ou procedimentos da organização.
+Sua tarefa é elaborar quatro alternativas de Diálogo Diário de Segurança (DDS), em português do Brasil, adaptadas ao perfil dos profissionais e à situação informada.
 
-Retorne somente JSON válido:
+PERFIL DOS PROFISSIONAIS:
+{profile}
+
+TEMA, SITUAÇÃO OU CONTEXTO:
+{topic}
+
+INSTRUÇÕES:
+1. Crie 4 alternativas diferentes de DDS sobre o mesmo tema.
+2. Cada DDS deve ser adequado para uma conversa de segurança com duração aproximada de 3 a 5 minutos, sem ultrapassar 5 minutos de leitura em ritmo normal.
+3. Utilize aproximadamente 400 a 550 palavras por alternativa. Não acrescente informações repetitivas ou desnecessárias apenas para atingir esse tamanho.
+4. Adapte a linguagem ao perfil dos profissionais informado pelo usuário. Priorize linguagem clara, direta, profissional e de fácil compreensão.
+5. Estruture naturalmente o DDS contemplando, quando aplicável: contextualização do tema ou situação; principais perigos e riscos; possíveis consequências; comportamentos e medidas preventivas; EPIs e/ou EPCs pertinentes; boas práticas durante a execução da atividade; e mensagem final de conscientização e prevenção.
+6. Dê preferência a orientações práticas que possam ser compreendidas e aplicadas durante a rotina de trabalho.
+7. Não invente acidentes, dados, estatísticas, procedimentos internos, requisitos legais ou normas da organização.
+8. Quando mencionar legislação, normas regulamentadoras ou requisitos técnicos, faça isso somente quando houver segurança quanto à pertinência. Não invente números de itens, subitens ou obrigações específicas.
+9. Não apresente o conteúdo como substituto dos procedimentos, treinamentos, normas ou orientações oficiais da organização.
+10. Evite linguagem excessivamente técnica, frases muito longas e parágrafos extensos.
+11. Não utilize tom alarmista. Priorize prevenção, conscientização e comportamento seguro.
+12. As quatro alternativas devem apresentar diferenças reais de abordagem, redação ou forma de comunicação, evitando apenas trocar palavras mantendo textos praticamente iguais.
+13. Entregue textos prontos para serem lidos pelo profissional responsável durante um DDS.
+
+Retorne SOMENTE JSON válido, exatamente nesta estrutura:
 {{"Texto 1":"...", "Texto 2":"...", "Texto 3":"...", "Texto 4":"..."}}
 """
     response = client.chats.create(model="gemini-3.1-flash-lite-preview").send_message(prompt)
@@ -186,6 +202,13 @@ def calculate_ranking(evaluations: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataF
     ranking.insert(0, "Posição", range(1, len(ranking) + 1))
     return ranking, weight_table
 
+
+
+def estimated_reading_time(text: str) -> int:
+    """Estima o tempo de leitura oral do DDS em minutos."""
+    words = len(str(text).split())
+    words_per_minute = 130
+    return max(1, round(words / words_per_minute))
 
 def get_client() -> genai.Client:
     api_key = os.getenv("GEMINI_API_KEY")
@@ -273,17 +296,28 @@ st.markdown("""<section class="hero">
 
 st.markdown('<h3 class="section-title">Gerar nova recomendação</h3>', unsafe_allow_html=True)
 with st.form("dds_form"):
-    profile = st.text_input("Perfil do público",
-        value="Eletricistas industriais com experiência em atividades de manutenção",
-        help="Informe função, experiência ou características que ajudem a adequar a linguagem ao público.")
-    topic = st.text_area("Tema e contexto do DDS", value=(
-        "Ocorreu um incidente envolvendo atividades em painéis elétricos energizados. "
-        "Elaborar um DDS sobre os principais riscos em intervenções elétricas, com ênfase "
-        "em medidas preventivas, uso adequado de EPIs, bloqueio de energia e "
-        "conscientização operacional conforme as práticas da NR-10."),
-        height=145, help="Descreva a situação, o risco ou algum acidente ocorrido")
-    submitted = st.form_submit_button("✨ Gerar e selecionar o melhor DDS",
-                                      type="primary", use_container_width=True)
+    profile = st.text_input(
+        "Perfil dos profissionais",
+        value="",
+        placeholder="Ex.: Mecânicos de manutenção que atuam em equipamentos industriais.",
+        help="Informe função, experiência ou características que ajudem a adequar a linguagem ao público."
+    )
+    topic = st.text_area(
+        "Tema ou situação a ser abordada",
+        value="",
+        placeholder=(
+            "Ex.: Durante uma manutenção foi identificado óleo no piso próximo ao equipamento. "
+            "Abordar riscos de queda, organização da área e medidas preventivas."
+        ),
+        height=145,
+        help="Descreva de forma simples o assunto, risco, incidente, quase acidente ou situação que deseja abordar."
+    )
+    submitted = st.form_submit_button(
+        "✨ Gerar e selecionar DDS",
+        type="primary",
+        use_container_width=True
+    )
+
 
 if submitted:
     if not profile.strip() or not topic.strip():
@@ -303,11 +337,13 @@ if "result" in st.session_state:
     texts, evaluations, ranking, weights = st.session_state["result"]
     winner = ranking.iloc[0]["Texto"]
     winner_score = float(ranking.iloc[0]["Pontuação"])
+    reading_minutes = estimated_reading_time(str(texts[winner]))
     winner_text = html.escape(str(texts[winner])).replace("\n", "<br>")
     st.markdown('<h3 class="section-title">DDS recomendado</h3>', unsafe_allow_html=True)
     st.markdown(f"""<div class="winner-card">
     <div class="winner-kicker">🏆 Alternativa priorizada pelo modelo multicritério</div>
     <div class="winner-title">{html.escape(winner)} · Pontuação {winner_score:.4f}</div>
+    <div style="color:#5d6b78;font-weight:700;margin-bottom:.75rem;">⏱ Tempo estimado de leitura: {reading_minutes} min</div>
     <div class="dds-text">{winner_text}</div></div>""", unsafe_allow_html=True)
 
     download_text = (

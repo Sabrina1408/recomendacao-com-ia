@@ -1,164 +1,468 @@
+import html
 import json
 import os
-import re
+import base64
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from google import genai
 
-
+APP_DIR = Path(__file__).resolve().parent
+PDF_FILE = APP_DIR / "Seleção_Inteligente_de_Textos_de_DDS.pdf"
 CRITERIA = ["Seguranca", "EPIs", "Clareza", "Objetividade", "Aplicabilidade"]
+LABELS = {"Seguranca": "Segurança", "EPIs": "EPIs", "Clareza": "Clareza",
+          "Objetividade": "Objetividade", "Aplicabilidade": "Aplicabilidade"}
+
+AUTHORS = [
+    ("Prof. Doutoranda Jaqueline Alves", "Universidade Federal Fluminense (UFF)",
+     [("LinkedIn", "https://www.linkedin.com/in/jaqueline-alves-cmb/"),
+      ("Lattes", "http://lattes.cnpq.br/9581708310870285")]),
+    ("Sabrina Alves Brito", "UVA | Desenvolvedora, Rede Globo Televisão",
+     [("LinkedIn", "https://www.linkedin.com/in/sabrina-a-brito/")]),
+    ("Prof. Dr. Rodrigo Caiado", "Pontifícia Universidade Católica do Rio de Janeiro (PUC-Rio)",
+     [("LinkedIn", "https://www.linkedin.com/in/rodrigo-caiado-a7187938/"),
+      ("Lattes", "http://lattes.cnpq.br/3922452850648712")]),
+    ("Prof. Dr. Gilson Lima", "Universidade Federal Fluminense (UFF)",
+     [("LinkedIn", "https://www.linkedin.com/in/gilson-lima-25808323/"),
+      ("Lattes", "http://lattes.cnpq.br/2248567464602970")]),
+]
+
+st.set_page_config(page_title="DDS SmartSelect", page_icon="🦺", layout="wide",
+                   initial_sidebar_state="collapsed")
+
+st.markdown("""
+<style>
+:root{--navy:#082b4c;--blue:#0b5f9e;--pale:#edf6fc;--green:#16845b;
+--gold:#e6a817;--ink:#17212b;--muted:#5d6b78;--line:#dce5ec}
+.stApp{background:#f7f9fb;color:var(--ink)}
+.block-container{max-width:1180px;padding-top:1.4rem;padding-bottom:2rem}
+header[data-testid="stHeader"]{background:transparent} #MainMenu,footer{visibility:hidden}
+.hero{padding:1.05rem 1.5rem;border-radius:14px;background:linear-gradient(125deg,#062946,#0b5f9e);
+box-shadow:0 8px 20px rgba(8,43,76,.12);margin-bottom:.8rem}
+.hero-tag{display:inline-block;padding:.28rem .7rem;border:1px solid rgba(255,255,255,.35);
+border-radius:999px;color:#fff;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.hero h1{color:#fff;font-size:2rem;margin:.4rem 0 .08rem}
+.hero h2{color:#dceefa;font-size:1.05rem;font-weight:500;margin:0}
+.hero p{color:#c9e1f1;margin:.4rem 0 0;max-width:900px;font-size:.92rem}
+.section-title{color:var(--navy);margin:1.3rem 0 .7rem}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1.15rem 1.25rem;
+box-shadow:0 4px 16px rgba(8,43,76,.05)}
+.method-flow{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin:.7rem 0 1rem}
+.method-step{min-height:96px;padding:.85rem .7rem;border-radius:12px;background:var(--pale);
+border-top:4px solid var(--blue);text-align:center}
+.step-number{color:var(--blue);font-weight:800;font-size:.76rem}
+.step-title{color:var(--navy);font-weight:750;margin-top:.3rem}
+.step-text{color:var(--muted);font-size:.82rem;margin-top:.22rem}
+.winner-card{padding:1.35rem 1.5rem;background:linear-gradient(135deg,#effaf5,#fff);
+border:1px solid #a8dcc7;border-left:7px solid var(--green);border-radius:14px;margin:.8rem 0 1rem}
+.winner-kicker{color:var(--green);font-weight:800;text-transform:uppercase;font-size:.78rem}
+.winner-title{color:#0e5139;font-size:1.45rem;font-weight:800;margin:.25rem 0 .65rem}
+.dds-text{white-space:pre-line;line-height:1.65}.safety-note{background:#fff8e7;
+border-left:5px solid var(--gold);border-radius:8px;padding:.85rem 1rem;color:#5b4817;margin:1rem 0}
+.author-card{min-height:165px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:1rem}
+.author-name{color:var(--navy);font-weight:800}.author-affiliation{color:var(--muted);
+font-size:.86rem;min-height:62px;margin:.3rem 0 .7rem}
+.author-links a{color:var(--blue);font-weight:700;text-decoration:none;margin-right:.8rem}
+.event-note{text-align:center;color:var(--muted);margin:1.2rem 0 .5rem;font-size:.9rem}
+div.stButton>button,div.stDownloadButton>button{border-radius:9px;font-weight:700;min-height:44px}
+div.stButton>button[kind="primary"]{background:var(--blue);border-color:var(--blue)}
+[data-testid="stForm"]{background:#fff;border:1px solid var(--line);border-radius:14px;
+padding:1.25rem;box-shadow:0 4px 16px rgba(8,43,76,.05)}
+@media(max-width:1000px){
+  .method-flow{grid-template-columns:repeat(2,1fr)}
+  .author-card{min-height:auto}
+}
+@media(max-width:600px){
+  .block-container{padding:1rem .8rem 1.5rem}
+  .hero{padding:1.25rem;border-radius:14px}
+  .hero h1{font-size:1.75rem}.hero h2{font-size:1rem}
+  .hero p{font-size:.92rem}
+  .method-flow{grid-template-columns:1fr}
+  .method-step{min-height:auto;text-align:left}
+  .winner-card{padding:1rem;border-left-width:5px}
+  .winner-title{font-size:1.2rem}
+  div.stButton>button,div.stDownloadButton>button{width:100%;min-height:48px}
+}
+.logo-box {
+    height: 130px;
+    background: white;
+    border: 1px solid #dce5ec;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    overflow: hidden;
+}
+
+.logo-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+@media (max-width: 600px) {
+    .logo-box {
+        height: 105px;
+        padding: 14px;
+    }
+}
+</style>""", unsafe_allow_html=True)
 
 
 def parse_json_response(response_text: str, expected_start: str):
-    cleaned = response_text.strip().replace("```json", "").replace("```", "").strip()
+    cleaned = response_text.strip().replace("~~~json", "").replace("~~~", "").strip()
+    cleaned = cleaned.replace(chr(96) * 3 + "json", "").replace(chr(96) * 3, "").strip()
     start = cleaned.find(expected_start)
     end = cleaned.rfind("}" if expected_start == "{" else "]")
     if start == -1 or end == -1 or end < start:
-        raise ValueError("A resposta da IA nao trouxe o JSON esperado.")
-    return json.loads(cleaned[start : end + 1])
+        raise ValueError("A resposta da IA não trouxe o JSON esperado.")
+    return json.loads(cleaned[start:end + 1])
+
+
+PRIMARY_MODEL = "gemini-3.5-flash"
+FALLBACK_MODEL = "gemini-3.5-flash-lite"
+
+def send_with_fallback(client: genai.Client, prompt: str):
+    """Usa um modelo estável e troca automaticamente em erros transitórios."""
+    try:
+        return client.chats.create(model=PRIMARY_MODEL).send_message(prompt)
+    except Exception as first_error:
+        message = str(first_error).upper()
+        transient_markers = ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED",
+                             "TIMEOUT", "500", "502", "504")
+        if not any(marker in message for marker in transient_markers):
+            raise
+        try:
+            return client.chats.create(model=FALLBACK_MODEL).send_message(prompt)
+        except Exception as fallback_error:
+            raise RuntimeError(
+                "O serviço de IA está temporariamente indisponível. "
+                "Aguarde alguns instantes e tente novamente."
+            ) from fallback_error
 
 
 def generate_texts(client: genai.Client, profile: str, topic: str) -> dict:
     prompt = f"""
-Crie 4 textos curtos de DDS sobre o tema: {topic}.
+Você é especialista em Segurança do Trabalho e comunicação preventiva em ambientes profissionais.
 
-Cada texto deve ter de 8 a 10 linhas.
-Retorne apenas JSON neste formato:
-{{
-  "Texto 1": "...",
-  "Texto 2": "...",
-  "Texto 3": "...",
-  "Texto 4": "..."
-}}
+Sua tarefa é elaborar quatro alternativas de Diálogo Diário de Segurança (DDS), em português do Brasil, adaptadas ao perfil dos profissionais e à situação informada.
+
+PERFIL DOS PROFISSIONAIS:
+{profile}
+
+TEMA, SITUAÇÃO OU CONTEXTO:
+{topic}
+
+INSTRUÇÕES:
+1. Crie 4 alternativas diferentes de DDS sobre o mesmo tema.
+2. Cada DDS deve ser adequado para uma conversa de segurança com duração aproximada de 3 a 5 minutos, sem ultrapassar 5 minutos de leitura em ritmo normal.
+3. Utilize aproximadamente 400 a 550 palavras por alternativa. Não acrescente informações repetitivas ou desnecessárias apenas para atingir esse tamanho.
+4. Adapte a linguagem ao perfil dos profissionais informado pelo usuário. Priorize linguagem clara, direta, profissional e de fácil compreensão.
+5. Estruture naturalmente o DDS contemplando, quando aplicável: contextualização do tema ou situação; principais perigos e riscos; possíveis consequências; comportamentos e medidas preventivas; EPIs e/ou EPCs pertinentes; boas práticas durante a execução da atividade; e mensagem final de conscientização e prevenção.
+6. Dê preferência a orientações práticas que possam ser compreendidas e aplicadas durante a rotina de trabalho.
+7. Não invente acidentes, dados, estatísticas, procedimentos internos, requisitos legais ou normas da organização.
+8. Quando mencionar legislação, normas regulamentadoras ou requisitos técnicos, faça isso somente quando houver segurança quanto à pertinência. Não invente números de itens, subitens ou obrigações específicas.
+9. Não apresente o conteúdo como substituto dos procedimentos, treinamentos, normas ou orientações oficiais da organização.
+10. Evite linguagem excessivamente técnica, frases muito longas e parágrafos extensos.
+11. Não utilize tom alarmista. Priorize prevenção, conscientização e comportamento seguro.
+12. As quatro alternativas devem apresentar diferenças reais de abordagem, redação ou forma de comunicação, evitando apenas trocar palavras mantendo textos praticamente iguais.
+13. Entregue textos prontos para serem lidos pelo profissional responsável durante um DDS.
+
+Retorne SOMENTE JSON válido, exatamente nesta estrutura:
+{{"Texto 1":"...", "Texto 2":"...", "Texto 3":"...", "Texto 4":"..."}}
 """
-    chat = client.chats.create(model="gemini-3.1-flash-lite-preview")
-    response = chat.send_message(prompt)
-    return parse_json_response(response.text, "{")
+    response = send_with_fallback(client, prompt)
+    texts = parse_json_response(response.text, "{")
+    if set(texts) != {f"Texto {n}" for n in range(1, 5)}:
+        raise ValueError("A IA não retornou as quatro alternativas esperadas.")
+    return texts
 
-# gemini-2.5-flash
 
 def evaluate_texts(client: genai.Client, texts: dict) -> pd.DataFrame:
     prompt = f"""
-Avalie os textos de DDS abaixo, atribuindo notas de 1 a 10 para cada criterio.
-
-Criterios:
-- Seguranca
-- EPIs
-- Clareza
-- Objetividade
-- Aplicabilidade
-
-Textos:
-{texts}
-
-Retorne apenas JSON neste formato:
+Avalie comparativamente estes DDS de 1 a 10 em: Seguranca (riscos e prevenção),
+EPIs (adequação), Clareza, Objetividade e Aplicabilidade.
+TEXTOS: {json.dumps(texts, ensure_ascii=False)}
+Retorne somente JSON válido:
 [
-    {{"Texto": "Texto 1", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}},
-    {{"Texto": "Texto 2", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}},
-    {{"Texto": "Texto 3", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}},
-    {{"Texto": "Texto 4", "Seguranca": 0, "EPIs": 0, "Clareza": 0, "Objetividade": 0, "Aplicabilidade": 0}}
+{{"Texto":"Texto 1","Seguranca":0,"EPIs":0,"Clareza":0,"Objetividade":0,"Aplicabilidade":0}},
+{{"Texto":"Texto 2","Seguranca":0,"EPIs":0,"Clareza":0,"Objetividade":0,"Aplicabilidade":0}},
+{{"Texto":"Texto 3","Seguranca":0,"EPIs":0,"Clareza":0,"Objetividade":0,"Aplicabilidade":0}},
+{{"Texto":"Texto 4","Seguranca":0,"EPIs":0,"Clareza":0,"Objetividade":0,"Aplicabilidade":0}}
 ]
 """
-    chat = client.chats.create(model="gemini-2.5-flash")
-    response = chat.send_message(prompt)
-    data = parse_json_response(response.text, "[")
-    frame = pd.DataFrame(data)
+    response = send_with_fallback(client, prompt)
+    frame = pd.DataFrame(parse_json_response(response.text, "["))
     missing = set(["Texto", *CRITERIA]) - set(frame.columns)
     if missing:
-        raise ValueError(f"A avaliacao nao trouxe as colunas: {', '.join(sorted(missing))}.")
+        raise ValueError(f"A avaliação não trouxe: {', '.join(sorted(missing))}.")
+    if len(frame) != 4 or set(frame["Texto"]) != {f"Texto {n}" for n in range(1, 5)}:
+        raise ValueError("A avaliação não retornou as quatro alternativas.")
     frame[CRITERIA] = frame[CRITERIA].apply(pd.to_numeric, errors="raise")
-    return frame
+    if not frame[CRITERIA].apply(lambda col: col.between(1, 10).all()).all():
+        raise ValueError("As notas devem estar entre 1 e 10.")
+    return frame[["Texto", *CRITERIA]]
 
 
 def calculate_ranking(evaluations: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     original = evaluations.set_index("Texto")[CRITERIA].astype(float)
     normalized = original.div(original.sum(axis=0), axis=1)
-    mean = normalized.mean(axis=0)
-    standard_deviation = normalized.std(axis=0)
-    coefficient_of_variation = standard_deviation / mean
-    matriz_cv = pd.DataFrame({
-        "Media": mean,
-        "Desvio_Padrao": standard_deviation,
-    })
-    matriz_cv["Coeficiente_de_Variacao"] = coefficient_of_variation
-    sum_cv = matriz_cv["Coeficiente_de_Variacao"].sum()
-    matriz_cv["Peso_AHP_Gaussiano"] = (
-        matriz_cv["Coeficiente_de_Variacao"] / sum_cv
+    means = normalized.mean(axis=0)
+    deviations = normalized.std(axis=0)
+    coefficients = deviations.div(means).fillna(0)
+    weight_table = pd.DataFrame({"Média": means, "Desvio-padrão": deviations,
+                                 "Coeficiente de variação": coefficients})
+    cv_sum = coefficients.sum()
+    weight_table["Peso AHP-Gaussiano"] = (
+        1 / len(CRITERIA) if cv_sum == 0 else coefficients / cv_sum
     )
-    weights = matriz_cv["Peso_AHP_Gaussiano"]
-    weighted = normalized * weights
-    final_score = weighted.sum(axis=1)
-    ranking = pd.DataFrame({
-        "Texto": final_score.index,
-        "Pontuacao": final_score,
-    })
-    ranking = ranking.sort_values(by="Pontuacao", ascending=False)
-    ranking["Ranking"] = range(1, len(ranking) + 1)
-    return ranking, matriz_cv
+    scores = (normalized * weight_table["Peso AHP-Gaussiano"]).sum(axis=1)
+    ranking = pd.DataFrame({"Texto": scores.index, "Pontuação": scores})
+    ranking = ranking.sort_values("Pontuação", ascending=False).reset_index(drop=True)
+    ranking.insert(0, "Posição", range(1, len(ranking) + 1))
+    return ranking, weight_table
 
+
+
+def estimated_reading_time(text: str) -> int:
+    """Estima o tempo de leitura oral do DDS em minutos."""
+    words = len(str(text).split())
+    words_per_minute = 130
+    return max(1, round(words / words_per_minute))
 
 def get_client() -> genai.Client:
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key and "GEMINI_API_KEY" in st.secrets:
-        api_key = st.secrets["GEMINI_API_KEY"]
+    try:
+        if not api_key and "GEMINI_API_KEY" in st.secrets:
+            api_key = st.secrets["GEMINI_API_KEY"]
+    except FileNotFoundError:
+        pass
     if not api_key:
-        raise RuntimeError("Defina a variavel de ambiente GEMINI_API_KEY antes de iniciar o site.")
+        raise RuntimeError("Configure GEMINI_API_KEY nos Secrets do Streamlit.")
     return genai.Client(api_key=api_key)
 
+def show_logos():
+    logos = [
+        ("UFF_logo.jpg", "UFF"),
+        ("veiga_logo.png", "UVA"),
+        ("puc_logo.png", "PUC-Rio"),
+        ("enegep_usp.png", "ENEGEP 2026 | USP"),
+    ]
 
-st.set_page_config(page_title="Recomendacao de DDS", page_icon="🦺", layout="wide")
-st.title("Recomendacao de DDS com IA")
-st.caption("Gere, avalie e classifique textos de dialogo diario de seguranca.")
+    for column, (filename, label) in zip(st.columns(4), logos):
+        with column:
+            path = APP_DIR / filename
 
+            if path.exists():
+                mime = (
+                    "image/jpeg"
+                    if path.suffix.lower() in {".jpg", ".jpeg"}
+                    else "image/png"
+                )
+
+                encoded = base64.b64encode(
+                    path.read_bytes()
+                ).decode("ascii")
+
+                st.markdown(
+                    f"""
+                    <div class="logo-box">
+                        <img
+                            src="data:{mime};base64,{encoded}"
+                            alt="Logotipo {html.escape(label)}"
+                        >
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f'<div class="logo-box">{html.escape(label)}</div>',
+                    unsafe_allow_html=True,
+                )
+
+
+
+def render_author(name, affiliation, links):
+    links_html = "".join(
+        f'<a href="{html.escape(url)}" target="_blank" rel="noopener noreferrer">{html.escape(label)}</a>'
+        for label, url in links
+    )
+    st.markdown(f"""<div class="author-card"><div class="author-name">{html.escape(name)}</div>
+    <div class="author-affiliation">{html.escape(affiliation)}</div>
+    <div class="author-links">{links_html}</div></div>""", unsafe_allow_html=True)
+
+
+def printable_dds(title: str, text: str) -> str:
+    """Cria uma página HTML limpa que pode ser aberta e impressa pelo navegador."""
+    safe_title = html.escape(title)
+    safe_text = html.escape(text).replace("\n", "<br>")
+    return f"""<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>{safe_title}</title>
+<style>
+body{{font-family:Arial,sans-serif;color:#17212b;max-width:760px;margin:48px auto;
+padding:0 28px;line-height:1.65}}h1{{color:#082b4c;border-bottom:3px solid #0b5f9e;
+padding-bottom:12px}}.note{{margin-top:32px;padding:12px;background:#fff8e7;
+border-left:5px solid #e6a817;font-size:13px}}@media print{{body{{margin:0;max-width:none}}
+.note{{break-inside:avoid}}}}</style></head><body><h1>{safe_title}</h1>
+<p>{safe_text}</p><div class="note"><strong>Atenção:</strong> material de apoio.
+Verifique sua compatibilidade com os procedimentos, normas e requisitos de segurança
+aplicáveis à organização.</div></body></html>"""
+
+
+st.markdown("""<section class="hero">
+<span class="hero-tag">Sistema de apoio à decisão - Tecnologia e conhecimento unidos para prevenir riscos e proteger vidas.</span>
+<h1>DDS SmartSelect</h1><h2>Seleção Inteligente de Diálogos Diários de Segurança</h2>
+<p>Trabalho aprovado para apresentação no XLVI ENEGEP 2026 · USP — São Paulo/SP</p></section>""", unsafe_allow_html=True)
+
+st.markdown('<h3 class="section-title">Gerar nova recomendação</h3>', unsafe_allow_html=True)
 with st.form("dds_form"):
     profile = st.text_input(
-        "Perfil do publico",
-        value="Eletricista industrial e trabalho 12 anos em empresa",
+        "Perfil dos profissionais",
+        value="",
+        placeholder="Ex.: Mecânicos de manutenção que atuam em equipamentos industriais.",
+        help="Informe função, experiência ou características que ajudem a adequar a linguagem ao público."
     )
     topic = st.text_area(
-        "Tema do DDS",
-        value=(
-            "Ontem ocorreu um incidente envolvendo atividades em paineis eletricos energizados. "
-            "Gerar um DDS voltado aos principais riscos em intervencoes eletricas, enfatizando "
-            "medidas preventivas, uso adequado de EPIs, bloqueio de energia e conscientizacao "
-            "operacional conforme praticas da NR-10"
+        "Tema ou situação a ser abordada",
+        value="",
+        placeholder=(
+            "Ex.: Durante uma manutenção foi identificado óleo no piso próximo ao equipamento. "
+            "Abordar riscos de queda, organização da área e medidas preventivas."
         ),
-        height=130,
+        height=145,
+        help="Descreva de forma simples o assunto, risco, incidente, quase acidente ou situação que deseja abordar."
     )
-    submitted = st.form_submit_button("Gerar recomendacao", type="primary")
+    submitted = st.form_submit_button(
+        "✨ Gerar e selecionar DDS",
+        type="primary",
+        use_container_width=True
+    )
+
 
 if submitted:
     if not profile.strip() or not topic.strip():
-        st.warning("Preencha o perfil e o tema antes de gerar a recomendacao.")
+        st.warning("Preencha o perfil do público e o tema.")
     else:
         try:
-            with st.spinner("Gerando e avaliando os textos..."):
+            with st.spinner("Gerando quatro alternativas e aplicando o AHP-Gaussiano..."):
                 client = get_client()
-                texts = generate_texts(client, profile, topic)
+                texts = generate_texts(client, profile.strip(), topic.strip())
                 evaluations = evaluate_texts(client, texts)
                 ranking, weights = calculate_ranking(evaluations)
             st.session_state["result"] = (texts, evaluations, ranking, weights)
         except Exception as error:
-            st.error(f"Nao foi possivel concluir a recomendacao: {error}")
+            st.error(f"Não foi possível concluir a recomendação: {error}")
 
 if "result" in st.session_state:
     texts, evaluations, ranking, weights = st.session_state["result"]
     winner = ranking.iloc[0]["Texto"]
-    st.success(f"Texto recomendado: {winner} (pontuacao {ranking.iloc[0]['Pontuacao']:.4f})")
+    winner_score = float(ranking.iloc[0]["Pontuação"])
+    reading_minutes = estimated_reading_time(str(texts[winner]))
+    winner_text = html.escape(str(texts[winner])).replace("\n", "<br>")
+    st.markdown('<h3 class="section-title">DDS recomendado</h3>', unsafe_allow_html=True)
+    st.markdown(f"""<div class="winner-card">
+    <div class="winner-kicker">🏆 Alternativa priorizada pelo modelo multicritério</div>
+    <div class="winner-title">{html.escape(winner)} · Pontuação {winner_score:.4f}</div>
+    <div style="color:#5d6b78;font-weight:700;margin-bottom:.75rem;">⏱ Tempo estimado de leitura: {reading_minutes} min</div>
+    <div class="dds-text">{winner_text}</div></div>""", unsafe_allow_html=True)
 
-    overview, texts_tab, evaluation_tab = st.tabs(["Ranking", "Textos", "Avaliacao"])
-    with overview:
-        left, right = st.columns([1.4, 1])
-        with left:
-            st.bar_chart(ranking.set_index("Texto")["Pontuacao"])
-            st.dataframe(ranking, hide_index=True, use_container_width=True)
-        with right:
-            st.subheader("Calculo dos criterios")
-            st.dataframe(weights, use_container_width=True)
-    with texts_tab:
-        for name, text in texts.items():
-            with st.expander(name, expanded=name == winner):
-                st.write(text)
-    with evaluation_tab:
-        st.dataframe(evaluations, hide_index=True, use_container_width=True)
+    download_text = (
+        f"DDS SmartSelect - {winner}\n\n{texts[winner]}\n\n"
+        "Atenção: material de apoio. Verifique sua compatibilidade com os "
+        "procedimentos, normas e requisitos de segurança da organização."
+    )
+    download_area, print_area = st.columns(2)
+    with download_area:
+        st.download_button(
+            "⬇️ Baixar DDS em texto",
+            data=download_text.encode("utf-8"),
+            file_name="DDS_recomendado.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+    with print_area:
+        st.download_button(
+            "🖨️ Baixar versão para imprimir",
+            data=printable_dds(f"DDS recomendado - {winner}", str(texts[winner])).encode("utf-8"),
+            file_name="DDS_recomendado_para_impressao.html",
+            mime="text/html",
+            use_container_width=True,
+        )
+    st.markdown("""<div class="safety-note"><strong>Atenção:</strong> o DDS gerado é
+    material de apoio à comunicação preventiva. O profissional responsável deve verificar
+    sua compatibilidade com os procedimentos, normas e requisitos da organização.</div>""",
+    unsafe_allow_html=True)
+
+    with st.expander("🔎 Ver análise completa e cálculo do método"):
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ["Ranking", "Quatro alternativas", "Matriz de avaliação", "Pesos do método"])
+        with tab1:
+            shown = ranking.copy()
+            shown["Pontuação"] = shown["Pontuação"].round(4)
+            left, right = st.columns([1.2, 1])
+            with left:
+                st.bar_chart(ranking.set_index("Texto")["Pontuação"], color="#0b5f9e")
+            with right:
+                st.dataframe(shown, hide_index=True, use_container_width=True)
+        with tab2:
+            for name, text in texts.items():
+                with st.expander(name, expanded=name == winner):
+                    if name == winner:
+                        st.success("Alternativa recomendada")
+                    st.write(text)
+        with tab3:
+            st.dataframe(evaluations.rename(columns=LABELS), hide_index=True,
+                         use_container_width=True)
+            st.caption("As notas variam de 1 a 10 e são atribuídas comparativamente pela IA.")
+        with tab4:
+            shown_weights = weights.rename(index=LABELS).copy()
+            shown_weights.index.name = "Critério"
+            st.dataframe(shown_weights.style.format("{:.4f}"), use_container_width=True)
+            st.markdown("""O **AHP-Gaussiano** obtém pesos a partir da variabilidade
+            das avaliações. Quanto mais um critério diferencia as alternativas, maior tende
+            a ser seu peso. A pontuação final é a soma ponderada dos valores normalizados.""")
+
+st.markdown('<h3 class="section-title">Como funciona?</h3>', unsafe_allow_html=True)
+st.markdown("""<div class="method-flow">
+<div class="method-step"><div class="step-number">ETAPA 1</div><div class="step-title">Contexto</div><div class="step-text">Digite o perfil dos profissionais e descreva o contexto necessário</div></div>
+<div class="method-step"><div class="step-number">ETAPA 2</div><div class="step-title">Geração</div><div class="step-text">Quatro textos são criados por Inteligência Artificial</div></div>
+<div class="method-step"><div class="step-number">ETAPA 3</div><div class="step-title">Avaliação</div><div class="step-text">Notas em cinco critérios: Segurança, EPIs, Clareza, Objetividade e Aplicabilidade</div></div>
+<div class="method-step"><div class="step-number">ETAPA 4</div><div class="step-title">AHP-Gaussiano</div><div class="step-text">O sistema aplica o método de decisão</div></div>
+<div class="method-step"><div class="step-number">ETAPA 5</div><div class="step-title">Recomendação</div><div class="step-text">Ranking e melhor DDS</div></div>
+</div>""", unsafe_allow_html=True)
+
+st.markdown('<h3 class="section-title">Sobre o método</h3>', unsafe_allow_html=True)
+st.markdown("""<div class="panel">O <strong>DDS SmartSelect</strong> integra IA
+Generativa e AHP-Gaussiano. A IA cria quatro alternativas e avalia os textos segundo
+segurança, EPIs, clareza, objetividade e aplicabilidade. Essas avaliações formam uma
+matriz de decisão, processada para produzir pesos, ranking e recomendação. Assim, o
+sistema não apenas gera um texto: ele compara alternativas de maneira estruturada.</div>""",
+unsafe_allow_html=True)
+
+st.markdown('<h3 class="section-title">Pesquisa desenvolvida por</h3>', unsafe_allow_html=True)
+for column, author in zip(st.columns(4), AUTHORS):
+    with column:
+        render_author(*author)
+
+st.markdown('<h3 class="section-title">Instituições e artigo científico</h3>',
+            unsafe_allow_html=True)
+logo_area, article_area = st.columns([2.15, 1], gap="large")
+with logo_area:
+    show_logos()
+with article_area:
+    st.markdown("#### Artigo científico")
+    st.caption("Trabalho aprovado para apresentação no XLVI ENEGEP 2026.")
+    if PDF_FILE.exists():
+        with open(PDF_FILE, "rb") as pdf:
+            st.download_button(
+                "📄 Acessar artigo completo",
+                data=pdf.read(),
+                file_name=PDF_FILE.name,
+                mime="application/pdf",
+                use_container_width=True,
+            )
+    else:
+        st.info(f'Inclua o arquivo "{PDF_FILE.name}" no diretório do app.')
